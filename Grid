@@ -1,0 +1,413 @@
+--Tentaizu
+
+--[[
+	Acts as a container for all information about the grid, including storage system for Mine objects.
+--]]
+local player = game.Players.LocalPlayer
+
+
+local starterPlayerScripts = player.PlayerScripts
+local modules = starterPlayerScripts.Scripts.Modules
+
+local replicatedStorage = game.ReplicatedStorage
+local gridFolder = game.Workspace.Grid
+local camera = game.Workspace.CurrentCamera
+
+local mine = require(script:WaitForChild("Mine"))
+local visuals = require(modules:WaitForChild("WorldInteraction"):WaitForChild("Visuals"))
+local Janitor = require(replicatedStorage.Janitor)
+
+local center = gridFolder.Center.Position
+
+
+
+local grid = {}
+grid.__index = grid
+local self = {}
+
+
+
+
+
+--[[Start of local functions]]
+
+--[[
+	Determines if a certain point is visible on screen. 
+	@param pos
+	@return boolean
+--]]
+local function isVisible(pos : Vector3)	
+	local _, isOnScreen = camera:WorldToScreenPoint(pos)
+	return isOnScreen
+
+end
+--[[
+	Determines the amount of workspace is visible in studs.
+	@param
+	@return
+--]]
+local function calGridToScreen() 
+
+	local i = 0
+	local j = 0
+
+	repeat 
+		i += 1
+
+	until not isVisible(Vector3.new(i, center.Y, j))
+
+	i -= 1
+
+	repeat 
+		j += 1
+
+	until not isVisible(Vector3.new(i, center.Y, j))
+
+	j -= 1
+	self.Corner = Vector3.new(i, center.Y, j)
+
+end
+
+--[[
+	Determines if a position meets the constraints put forth by the grid
+	@param pos
+	@return boolean
+--]]
+local function isValidPos(pos : Vector2)
+	--The distance from one wall of the grid to the center of the grid.
+	local radiusPartCountX = math.ceil(self.OBJECTS.X / 2)
+	local radiusPartCountZ = math.ceil(self.OBJECTS.Y / 2)
+
+	if not (math.abs(pos.X) < radiusPartCountX) then
+		return false
+	end
+	if not (math.abs(pos.Y) < radiusPartCountZ) then
+		return false
+	end
+
+	return true
+end
+
+--[[
+	Will update all neighbors of the cell at pos to accomodate for pos being a 'bomb'
+	@param pos
+	@return 
+--]]
+local function updateNeighbors(pos : Vector2)
+	for i = pos.X - 1, pos.X + 1 do
+		for j = pos.Y - 1, pos.Y + 1 do
+			if isValidPos(Vector2.new(i, j)) then
+				local name = tostring(i) .. " " .. tostring(j)
+				local mine = grid[name]
+
+				mine.Neighbors += 1
+			end
+		end
+	end
+end
+
+--[[
+	Randomly place bombs across the grid
+	@param
+	@return
+--]]
+local function generateBombs()
+	local randoms = {}
+	local random = Random.new(math.floor(tick() / math.pi)) --Sets the seed
+	local radiusPartCountX = math.ceil(self.OBJECTS.X / 2)
+	local radiusPartCountZ = math.ceil(self.OBJECTS.Y / 2)
+	--Generates the bombs
+	local i = self.BOMBCOUNT
+	while i > 0 do
+		--The location of the bomb
+
+		local vec = Vector2.new(
+			random:NextInteger(-(radiusPartCountX -1), radiusPartCountX - 1), 
+			random:NextInteger(-(radiusPartCountZ -1), radiusPartCountZ - 1))
+
+		--If location is not already a bomb, make it a bomb
+		if not table.find(randoms, vec) then
+
+			table.insert(randoms, vec)
+
+			--Assigns the status
+			local bombName = tostring(vec.X) .. " " .. tostring(vec.Y)
+			grid[bombName].Bomb = true
+
+			--Updates neighboring tiles
+			updateNeighbors(vec)
+
+			i -= 1
+		end
+	end
+end
+
+--TODO: Clean up the below function
+--[[
+	Makes all neighboring cells to all elements in bomb visible. 
+	@param bombs, pos
+	@return int
+--]]
+local function clearNeighbors(bombs, pos)
+	local count = 0
+	for i = pos.x - 1, pos.x + 1 do
+		for j = pos.y - 1, pos.y + 1 do
+			if isValidPos(Vector2.new(i, j)) then
+
+				local str = tostring(i) .. " " .. tostring(j)
+
+				if table.find(bombs, grid[str]) == nil and not grid[str].Flagged then
+					if not grid[str].bomb and grid[str].Neighbors == 0 then
+						count += 1
+					end
+
+					table.insert(bombs, grid[str])
+					grid[str].isVisible = true
+				end
+
+			end
+		end
+	end
+
+	return count
+end
+
+--[[
+	Automatically removes cells such that the outer shell consist of non-zero values, and the inner cells consist of zero values.
+	@param bombs 
+	@return table
+--]]
+local function autoRemoveCells(bombs)
+	local count = 0
+
+	for _, bomb in bombs do
+		if not bomb.Bomb and not bomb.Flagged and bomb.Neighbors == 0 then
+
+			local pos = string.split(bomb.Part.Name, " ")
+			local x = tonumber(pos[1]); local y = tonumber(pos[2])
+			pos = Vector2.new(x, y)
+
+			count += clearNeighbors(bombs, pos)
+
+		end
+	end
+
+	if count == 0 then
+		return bombs
+	else
+		return autoRemoveCells(bombs)
+	end
+end
+
+--[[
+	Places the number of appropriate mines in the correct positions.
+	@param
+	@return
+--]]
+local function placeCells()
+	local totalSpace = Vector2.new((self.Corner.X - self.Center.X) * 2, (self.Corner.Z - self.Center.Z) * 2)
+
+	print("Total Space: " .. tostring(totalSpace))
+
+	local paddingVector = Vector2.new(self.PADDING, self.PADDING)
+
+	local size = (totalSpace - ((self.OBJECTS + Vector2.new(1, 1)) * (paddingVector)))/self.OBJECTS
+
+	for i = 1, self.OBJECTS.X do
+		for j = 1, self.OBJECTS.Y  do
+
+			--Visually set up the grid
+
+			local i_ = (i - math.ceil(self.OBJECTS.X / 2)) --[[ Gives an index from -x to x, where x is half of the 
+															   number of objects. Index 0 is the center--]] 
+			local j_ = (j - math.ceil(self.OBJECTS.Y / 2)) 
+
+			local posX = (size.X + self.PADDING) * i_ 
+			local posZ = (size.Y + self.PADDING) * j_ 
+
+			local pos = center + Vector3.new(posX, 0, posZ)
+
+			local cf = CFrame.new(pos)
+
+			local name = tostring(i_) .." " .. tostring(j_)
+
+			self.Size =  Vector3.new(size.X, 1, size.Y)
+
+			local mine = mine:new()		
+
+			local part = mine.Part
+			part.CFrame = cf
+			part.Size = self.Size
+			part.Name = name
+			part.Transparency = 0
+			part.Parent = gridFolder
+			mine.Part = part
+			grid[name] = self._janitor:Add(mine, "Destroy", name)
+
+		end
+	end
+end
+
+--[[
+	Create a new grid
+	@param
+	@return
+--]]
+local function createGrid() 
+
+	calGridToScreen()
+
+	print("Corner: " .. tostring(self.Corner))
+
+	placeCells()
+
+	generateBombs()
+end
+
+--[[
+	Determines if a certain mine is visible or not
+	@param mine : Mine
+	@return boolean
+--]]
+local function isMineCovered(mine)
+	--'mine' can be a function value from Grid
+	if typeof(mine) ~= "table" then
+		return false
+	end
+	if mine.isVisible or mine.Flagged then
+		return false
+	end
+	
+
+	return true
+end
+
+--[[End of local functions]]
+
+
+--[[Start of global functions]]
+
+--[[
+	Switches the mine's visibility and handles all of the behind the scenes of flagging.
+	@param pos : Vector2
+	@return 
+--]]
+function grid.uncoverMine(pos : Vector2)
+	local mine = grid:getMine(pos)
+
+	if mine.Flagged then
+		return
+	end
+
+	if mine.Bomb then
+		visuals.playerLose(mine)
+		return
+	end
+
+	local minesToUpdate = {}
+	table.insert(minesToUpdate, mine)
+
+	mine.isVisible = true
+
+	if (mine.Neighbors == 0) then
+		--Autoremove adjacent cells
+		minesToUpdate = autoRemoveCells(minesToUpdate)
+		for _, v in minesToUpdate do
+			v.isVisible = true
+		end
+	end
+
+	--Fire visual script
+	visuals.UpdateMines(minesToUpdate)
+	
+end
+
+--[[
+	Returns the mine at a certain position
+	@param mine : vector2
+	@return Mine
+	
+]]
+function grid:getMine(mine : Vector2)
+	local mineName = tostring(mine.X) .. " " .. tostring(mine.Y)	
+	return grid[mineName]
+end
+
+--[[
+	Toggle flag for the cell
+	@param pos
+	@return
+--]]
+function grid.flagMine(pos : Vector2)
+	local mine = grid:getMine(pos)
+
+	if not mine.isVisible then
+		mine.Flagged = not mine.Flagged
+		visuals.flagMine(mine)
+	end
+end
+
+--[[
+	Determines the number of non-visible mines left. 
+	@param
+	@return int
+--]]
+function grid:getNumberOfCoveredCells()
+	local count = 0
+	for i, v in pairs(grid) do
+		--When all mines are uncovered, finish game
+		if isMineCovered(v) then
+			count += 1
+		end
+	end
+
+	return count
+end
+
+--[[
+	Creates a new Grid object. Contains all properties of Grid, and also contains all mines in a grid.
+	@param
+	@return Grid
+--]]
+function grid.new()
+
+	setmetatable(self, grid)
+	self._janitor = Janitor.new()
+
+	self.OBJECTS = Vector2.new(25, 49)
+	self.BOMBCOUNT = 40
+	self.PADDING = 3
+
+	self.Corner = Vector3.new(1, 0, 1)
+	self.Size = Vector3.new(0, 0, 0)
+
+	self.Center = center
+
+	createGrid()
+
+	return self
+end
+
+--[[
+	Clean up grid. Ends up cleaning up all 'Mine' objects as well.
+	@param
+	@return
+]]
+function grid:Destroy()
+	print("Destroying Grid")
+	local janitor = self._janitor
+
+	if janitor then
+		janitor:Destory()
+		self._janitor = nil
+	end
+end
+--[[End of global functions]]
+
+
+--[[
+If I want to transform this script to allow for 3d, what I could do is 
+I can also set up inheritance, so that I can have all forms of grids inherit similar structure.
+]]
+
+return grid
