@@ -1,0 +1,127 @@
+--[[
+	This module handles the start/finish of game version such as 'classic minesweeper'
+--]]
+
+local player = game.Players.LocalPlayer
+
+local scripts = player.PlayerScripts.Scripts
+
+local modules = scripts.Modules
+local worldInteraction = modules:WaitForChild("WorldInteraction")
+
+local gridHandModule = worldInteraction:WaitForChild("GridHandler")
+local cameraModule = worldInteraction:WaitForChild("Camera")
+local visualsModule = worldInteraction:WaitForChild("Visuals")
+
+local gridHand = require(gridHandModule)
+local camera = require(cameraModule)
+local visuals = require(visualsModule)
+
+local checkGameStatus = script:WaitForChild("CheckGameStatus")
+local center = game.Workspace:WaitForChild("Grid"):WaitForChild("Center")
+
+local handler = {}
+handler.__index = handler
+
+
+
+
+
+--[[Start of local functions--]]
+--[[
+	Ends classic game
+	@param
+	@return
+--]]
+local function endClassic()
+
+end
+
+--[[
+	Ends 3D game
+	@param
+	@return
+--]]
+local function end3D()
+
+end
+--[[End of local functions]]
+
+--[[Start of global functions]]
+
+--[[
+	Starts a 3D game
+	@param
+	@return
+--]]
+function handler.start3D()
+	handler.gamePlaying = "3D"
+end
+
+--[[
+	Checks at the end of the game whether the player has won.
+	@param
+	@return
+--]]
+function handler:isGameFinished()
+	if self.gamePlaying == "Classic" then
+		local grid = gridHand:GetGrid("Grid")
+		if grid.getNumberOfCoveredCells() == 0 then
+			handler.finishGame()
+		end
+	end
+	if self.gamePlaying == "3D" then
+		
+	end
+end
+
+--[[
+	Finish the current game being controlled by this object.
+	@param
+	@return
+--]]
+function handler.finishGame()
+	print("Finishing game")
+
+	if handler.gamePlaying == "Classic" then
+		endClassic()
+		handler.gamePlaying = "Finished"
+	end
+	
+	if handler.gamePlaying == "3D" then
+		end3D()
+		handler.gamePlaying = "Finished"
+	end
+end
+
+--[[
+	Create a classic, 2D minesweeper board. 
+	@param
+	@return
+--]]
+function handler:startClassic()
+	self.gamePlaying = "Classic"
+	camera.setGridView()
+
+	print("Creating a classic game")
+	local grid = gridHand.CreateGrid("Grid")
+end
+
+--[[
+	Create a new gameController. This object manages a game's current state. 
+	@param
+	@return GameController
+--]]
+function handler:new()
+	local self = {}
+	setmetatable(self, handler)
+
+
+	self.gamePlaying = nil
+
+	return self
+end
+
+--[[End of global functions]]
+
+return handler
