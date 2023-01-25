@@ -1,0 +1,45 @@
+--[[
+	Acts as a singular mine, which can be of three statuses: not visible, flagged, or visible
+--]]
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local Janitor = require(replicatedStorage.Janitor)
+local gridFolder = game.Workspace.Grid
+
+local mine = {}
+mine.__index = mine
+
+
+--[[
+	Creates a new Mine object
+	@param
+	@return Mine
+--]]
+function mine:new()
+	local self = {}
+
+	local part = gridFolder.Center:Clone()
+	
+	setmetatable(self, mine)
+	self._janitor = Janitor.new()
+	self.Part = self._janitor:Add(part, "Destroy")
+	self.Bomb = false
+	self.isVisible = false
+	self.Neighbors = 0
+	self.Flagged = false
+	return self
+end
+--[[
+	Cleans up the mine object
+	@param
+	@return
+]]
+function mine:Destroy()
+	local janitor = self._janitor
+	if janitor then
+		janitor:Destroy()
+		self._janitor = nil
+	end
+end
+
+return mine
