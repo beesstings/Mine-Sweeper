@@ -1,0 +1,58 @@
+--[[
+	Acts as a storage system for multiple GameControllers
+
+--]]
+
+local hand = {}
+local Janitor = require(game.ReplicatedStorage:WaitForChild("Janitor"))
+local gameControllerMod = script:WaitForChild("GameController")
+local gameController = require(gameControllerMod)
+local games = {}
+
+
+
+--[[
+	Create a new gameController. This manages the number of game's currently being played by the local user.
+	@param name
+	@return gameController
+--]]
+function hand.CreateGame(name : string)
+	--grids._janitor = Janitor.new() 
+	if name == nil then
+		name = "Game"
+	end
+	
+	local classicGame = gameController:new()
+	
+	games[name] = getmetatable(classicGame)
+	
+	games[name]:startClassic()
+	print(games)
+
+	
+	return games[name]
+end
+
+--[[
+	Gets the gameController stored under 'name'
+	@param name
+	@return gameController
+--]]
+function hand:GetGame(name : string)
+
+	if name == nil then
+		name = "Game"
+	end
+	return games[name]
+end
+
+--[[
+	Cleans up the gameController stored under 'name'
+	@param name
+	@return
+--]]
+function hand:Destroy(name : string)
+	--grids._janitor:Remove(name)
+end
+
+return hand
