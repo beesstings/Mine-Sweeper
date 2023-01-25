@@ -1,0 +1,152 @@
+--[[
+	Takes in input, and handles it accordingly. Acts as the one object causing a chain reaction.
+	Upon left mouse click, it determines which mines to reveal
+	Upon right mouse click, it determines which mines to flag
+--]]
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local gridFolder = game.Workspace.Grid
+
+local modules = player.PlayerScripts.Scripts.Modules
+
+local gridHandModule = modules:WaitForChild("WorldInteraction"):WaitForChild("GridHandler")
+local gridHand = require(gridHandModule)
+local gridMod = gridHandModule.Grid
+local handler = require(modules:WaitForChild("Skeleton"):WaitForChild("GameControllerHandler"))
+
+local mouse = player:GetMouse()
+
+
+--[[
+	Find the closest 'Mine' to a Vector3 position. Will return nil if no mine is close enough.
+	@param pos
+	@return Part
+--]]
+local function findTouchingPart(pos : Vector3)
+	local part = nil
+	local shortestMag;
+	local gameControl = handler:GetGame()	
+	
+	if gameControl == nil then
+		return 
+	end
+	
+	if gameControl.gamePlaying == "Classic" then
+		local grid = gridHand:GetGrid("Grid")
+		shortestMag = math.sqrt(((grid.Size.X / 2 + grid.PADDING) ^ 2) + ((grid.Size.Y /2 + grid.PADDING) ^ 2))
+	end
+	
+	if not shortestMag then
+		return nil
+	end
+	
+	for i, v in pairs(gridFolder:GetChildren()) do
+		if (v.Position - pos).Magnitude < shortestMag and v.Name ~= "Center" then
+			shortestMag = (v.Position - pos).Magnitude
+			part = v
+		end
+	end
+	
+	
+	return part
+end
+
+--[[
+	Returns the visibility of the mine
+	@param Mine
+	@return boolean
+--]]
+local function getMineVisibility(mine)
+	return mine.isVisible
+end
+
+
+--[[
+	When a player clicks, check if action needs to be taken
+	@param
+	@return
+--]]
+mouse.Button1Down:Connect(function()
+	local pos = mouse.Hit.Position
+	local clickedPart = findTouchingPart(pos)
+	
+	local gameControl = handler:GetGame()	
+	
+	--TODO: Add a more permanent way of creating a new game	
+	if gameControl == nil then
+		gameControl = handler.CreateGame()
+		
+	end
+	
+	if gameControl.gamePlaying == nil then
+		print("The game has not started yet. ")
+		return
+	end
+	
+	if not (clickedPart) then
+		print("Could not find the closest part")
+		return 
+	end
+	
+	if handler.gamePlaying == "Finished"  then
+		print("The game is finished. Please start a new game")
+		return
+	end	
+	
+	--Action needs to be taken
+	local grid = gridHand:GetGrid("Grid")
+	
+	local name = clickedPart.Name
+	local index = string.split(name, " ")
+	index = Vector2.new(index[1], index[2])
+		
+	local mine = grid:getMine(index)
+	if mine and getMineVisibility(mine) then
+		return
+	end
+	
+	grid.uncoverMine(index) 
+	
+	gameControl:isGameFinished()
+	
+end)
+
+--[[
+	If a player right clicks, flag the mine.
+	@param
+	@return
+--]]
+
+mouse.Button2Down:Connect(function()
+	local pos = mouse.Hit.Position
+	
+	local gameControl = handler:GetGame()	
+	print(gameControl)
+	if gameControl.gamePlaying == nil then
+		print("The game has not started yet. ")
+		return
+	end
+	
+	if gameControl.gamePlaying == "Finished" then
+		print("The game is finished. Please start a new game")
+		return
+	end
+	local clickedPart = findTouchingPart(pos)
+
+	if not (clickedPart) then
+		print("Could not find the closest part")
+		return 
+	end
+
+
+	local grid = gridHand:GetGrid("Grid")
+
+	local name = clickedPart.Name
+	local index = string.split(name, " ")
+	index = Vector2.new(index[1], index[2])
+
+	grid.flagMine(index)
+	
+end)
