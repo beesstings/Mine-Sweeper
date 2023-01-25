@@ -1,0 +1,47 @@
+--[[
+	Acts as a storage system for all Grid objects.
+--]]
+
+local hand = {}
+local Janitor = require(game.ReplicatedStorage:WaitForChild("Janitor"))
+local gridModule = script:WaitForChild("Grid")
+local grid = require(gridModule)
+local grids = {}
+
+--[[
+	Creates a new grid item. The default grid is "Grid"
+	@param name
+	@return Grid
+--]]
+function hand.CreateGrid(name : string)
+	if name == nil then
+		name = "Grid"
+	end
+	grids._janitor = Janitor.new() 
+	grids[name] = grids._janitor:Add(grid.new(), "Destroy", name)
+	return grids[name]
+end
+
+--[[
+	Gets a grid item. The default grid is "Grid".
+	@param name
+	@return Grid
+--]]
+function hand:GetGrid(name : string)
+	if name == nil then
+		name = "Grid"
+	end
+	
+	return grids[name]
+end
+
+--[[
+	Destroy this object. Creates a cascading effect ending at mine.
+	@param name
+	@return
+--]]
+function hand:Destroy(name : string)
+	grids._janitor:Remove(name)
+end
+
+return hand
