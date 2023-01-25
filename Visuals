@@ -1,0 +1,195 @@
+--[[
+	Translates code to something that players can actually see. Handles the Grid's visuals.
+]]
+
+local module = {}
+local tweenService = game:GetService("TweenService")
+--local UI = script.Parent:WaitForChild("UI")
+--local updateGameStatus = UI.UpdateGameStatus
+local waitTime = .0005
+local flag = "http://www.roblox.com/asset/?id=7117487482"
+
+
+
+--[[
+	Creates a smooth transition for the UI to appear
+	@param surfaceGUI
+	@return
+]]
+local function tweenUI(surfaceGUI)
+	local textLabel = surfaceGUI:FindFirstChild("TextLabel")
+	local imageLabel = surfaceGUI:FindFirstChild("ImageLabel")
+	if not textLabel and not imageLabel then
+		warn("No appropriate Label was not found to tween")
+		return
+	end	
+	
+	local tweenInfo = TweenInfo.new(.05)
+	local textProperties = {
+		TextTransparency = 0
+	}
+	local imageProperties = {
+		ImageTransparency = 0
+	}
+	if textLabel then
+		local tween = tweenService:Create(textLabel, tweenInfo, textProperties)
+		tween:Play()
+	end
+	if imageLabel then
+		local tween = tweenService:Create(imageLabel, tweenInfo, imageProperties)
+		tween:Play()
+	end
+end
+
+--[[
+	Creates a smooth transition for the part color to change
+	@param part
+	@return
+--]]
+local function tweenPart(part : BasePart)
+	if not part then
+		warn("Please pass a valid parameter")
+	end
+	local tweenInfo = TweenInfo.new(.1)
+	
+	local tweenProperties = {
+
+		Color = Color3.fromRGB(120, 120, 120)
+	}
+	local tween = tweenService:Create(part, tweenInfo, tweenProperties)
+	tween:Play()
+end
+
+--[[
+	Creates a SurfaceGUI, which can then be parented to a Mine part.
+	@param
+	@return SurfaceGUI
+--]]
+local function createUI()
+	local surfaceGUI = Instance.new("SurfaceGui")
+	surfaceGUI.Face = Enum.NormalId.Top
+	surfaceGUI.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	surfaceGUI.PixelsPerStud = 15
+
+	return surfaceGUI
+end
+
+--[[
+	Creates a textLabel, which can then display the status of the Mine
+	@param surfaceGUI
+	@return textLabel
+--]]
+local function createTextLabel(surfaceGUI)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.BackgroundTransparency = 1
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.TextScaled = true
+	textLabel.TextTransparency = 1
+
+	textLabel.Parent = surfaceGUI
+	return textLabel
+end
+
+--[[
+	Creates an ImageLabel, which can then display a bomb
+	@param surfaceGUI
+	@return imageLabel
+--]]
+local function createImageLabel(surfaceGUI)
+	local imageLabel = Instance.new("ImageLabel")
+	imageLabel.ImageTransparency = 1
+	imageLabel.Size = UDim2.new(1,0,1, 0)
+	imageLabel.BorderSizePixel = 0
+	imageLabel.BackgroundTransparency = 1
+	imageLabel.Parent = surfaceGUI
+	imageLabel.Image = flag
+	return imageLabel
+end
+
+
+--[[
+	Updates the display of a cell/cells. 
+	@param mines : table
+	@return 
+--]]
+function module.UpdateMines(mines)
+	
+	for i, v in pairs(mines) do
+		local part = v.Part
+		if not part then
+			return	
+		end
+		
+		local oldUI = part:FindFirstChild("SurfaceGui")
+
+		if oldUI then
+			oldUI:Destroy()
+		end
+		
+		local surfaceGUI = createUI()
+		local textLabel = createTextLabel(surfaceGUI)
+		
+		
+		textLabel.Text = v.Neighbors
+		
+		--The mine was a bomb (Player lost) - Overwrite text.
+		if v.Bomb then
+			textLabel.Text = "Bomb"
+		end
+		
+		surfaceGUI.Parent = part
+		
+		tweenUI(surfaceGUI)
+		tweenPart(part)
+		task.wait(waitTime)
+			
+	end
+end
+
+--[[
+	Handles world visuals when a player wins
+	@param
+	@return
+--]]
+function module.playerWin()
+end
+--[[
+	Handles world visuals when a player loses
+	@param mine
+	@return
+]]
+function module.playerLose(mine)
+	
+	module.UpdateMines({mine})
+	print("The player lost")
+	
+end
+
+--[[
+	Visually flags a mine 
+	@param mine
+	@return
+--]]
+function module.flagMine(mine)
+	local part = mine.Part
+
+	local oldUI = part:FindFirstChild("SurfaceGui")
+
+	if oldUI then
+		oldUI:Destroy()
+	end
+	
+	if mine.Flagged then
+		local surfaceUI = createUI()
+		local imageLabel = createImageLabel(surfaceUI);
+		
+		surfaceUI.Parent = part
+		tweenUI(surfaceUI)		
+		return
+	end
+	
+	
+end
+
+
+return module
